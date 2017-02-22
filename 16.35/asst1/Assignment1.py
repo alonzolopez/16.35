@@ -42,9 +42,11 @@ class GroundVehicle(object):
 	def getVelocity(self):
 		speed = self.control.getSpeed()
 		theta = self.pose[2]
+		print(speed)
 
 		xdot = speed*np.sin(theta)
-		ydot = speed*np.cos(theta)
+		ydot = speed*np.cos(theta) 
+		print(ydot)
 
 		return [xdot, ydot, self.control.getRotVel()]
 
@@ -88,8 +90,8 @@ class GroundVehicle(object):
 		xinit, yinit, thetainit = self.getPosition()
 		xdotinit, ydotinit, omegainit = self.getVelocity()
 		s = self.control.getSpeed()
-		r = s/omega
-		dtheta = omega*t
+		r = s/omegainit
+		dtheta = omegainit*t
 
 		xfin = xinit + r*(np.sin(thetainit+dtheta) - np.sin(thetainit))
 		yfin = yinit - r*(np.cos(thetainit-dtheta) - np.cos(thetainit))
@@ -286,6 +288,8 @@ class TestGroundVehicle(unittest.TestCase):
 	def testSetVelocityXAboveBound(self):
 		self.gv1.setPosition([50,50, np.pi/2])
 		self.gv1.setVelocity([15,0,0])
+		print(self.gv1.getVelocity()[0])
+		print(self.gv1.getVelocity()[1])
 		self.assertEquals(self.gv1.getVelocity()[1], 0, "xdot Above bound alters ydot = 0 when it should not.")
 		self.assertEquals(self.gv1.getVelocity()[0], 10, "xdot above bound does not clamp correctly")
 	def testSetVelocityYAboveBound(self):
@@ -309,16 +313,18 @@ class TestGroundVehicle(unittest.TestCase):
 		self.assertEquals(self.gv1.getVelocity()[1], 10*np.cos(-np.pi/4), "xdot and ydot Above bound does not set ydot correctly with theta = -pi/4")
 		self.assertEquals(self.gv1.getVelocity()[0], 10*np.sin(-np.pi/4), "xdot and ydot above bound does not set xdot correctly with theta = -pi/4")
 	def testSetVelocityXInBoundYZero(self):
-		self.gv1.setPosition([50,50,np.pi/4])
+		self.gv1.setPosition([50,50,np.pi/2])
 		self.gv1.setVelocity([7,0,0])
-		self.assertEquals(self.gv1.getVelocity()[1], 0, "xdot = 7 and ydot = 0 does not set ydot correctly with theta = pi/4")
-		self.assertEquals(self.gv1.getVelocity()[0], 7*np.sin(np.pi/4), "xdot = 7 and ydot = 0 does not set xdot correctly with theta = pi/4")
+		print(self.gv1.getVelocity()[0])
+		print(self.gv1.getVelocity()[1])
+		self.assertEquals(self.gv1.getVelocity()[1], 0, "xdot = 7 and ydot = 0 does not set ydot correctly with theta = pi/2")
+		self.assertEquals(self.gv1.getVelocity()[0], 7, "xdot = 7 and ydot = 0 does not set xdot correctly with theta = pi/2")
 	def testSetVelocityYInBoundXZero(self):
 		self.gv1.setPosition([50,50,0])
 		self.gv1.setVelocity([0,7,0])
 		self.assertEquals(self.gv1.getVelocity()[1], 7, "xdot = 0 and ydot = 7 does not set ydot correctly with theta = 0")
-		self.assertEquals(self.gv1.getVelocity()[0], 0, "xdot = 0 and ydot = 7 does not set xdot correctly with theta = ")
-	def testSetVelocityXAndYInBound():
+		self.assertEquals(self.gv1.getVelocity()[0], 0, "xdot = 0 and ydot = 7 does not set xdot correctly with theta = 0")
+	def testSetVelocityXAndYInBound(self):
 		try:
 			self.gv1.setPosition([50,50,0])
 			self.gv1.setVelocity([6,6,0])
@@ -358,15 +364,11 @@ class TestGroundVehicle(unittest.TestCase):
 			self.gv1.controlVehicle(Control(10,np.pi/8))
 		except ValueError:
 			self.fail("controlVehicle raises ValueError when it should not. s max not inclusive")
-	def testControlVehicleSpeedAtMin():
+	def testControlVehicleSpeedAtMin(self):
 		try:
 			self.gv1.controlVehicle(Control(5,np.pi/8))
 		except ValueError:
 			self.fail("controlVehicle raises ValueError when it should not. s min not inclusive")
-	def testControlVehicleSpeedAboveUpperBound(self):
-		self.assertRaises(ValueError, self.gv1.controlVehicle, Control(15, 0))
-	def testControlVehicleSpeedBelowLowerBound(self):
-		self.assertRaises(ValueError, self.gv1.controlVehicle, Control(3, 0))
 	def testRotVelControlVehicleAtMax(self):
 		try:
 			self.gv1.controlVehicle(Control(6, np.pi/4))
@@ -377,15 +379,29 @@ class TestGroundVehicle(unittest.TestCase):
 			self.gv1.controlVehicle(Control(6, -np.pi/4))
 		except ValueError:
 			self.fail("ValueError incorrectly raised when controlVehicle sets RotVel at min.")
-	def testRotVelControlVehicleAboveMax(self):
-		self.assertRaises(ValueError, self.gv1.controlVehicle, Control(6, np.pi))
-	def testRotVelControlVehicleBelowMin(self):
-		self.assertRaises(ValueError, self.gv1.controlVehicle, Control(6, -np.pi))
-
 		
 	def testUpdateState(self):
 		pass
-
+def perpendicular(a):
+		#returns a vector perpendicular to a
+		b = np.empty_like(a)
+		b[0] = -a[1]
+		b[1] = a[0]
+		return b
+def findReferencePoint(a1, a2, b1, b2):
+	#takes in endpoints of lines a and b in the form [x,y] 
+	#finds the intersection between the two lines
+	a1 = np.array(a1)
+	a2 = np.array(a2)
+	b1 = np.array(b1)
+	b2 = np.array(b2)
+	da = a2-a1
+	db = b2-b1
+	dp = a1-b1
+	dap = perpendicular(da)
+	denom = np.dot(dap,db)
+	num = np.dot(dap,dp)
+	return ((num/denom)*db + b1)
 class Simulator(object):
 	def __init__(self):
 		self.sec = 0
@@ -394,7 +410,7 @@ class Simulator(object):
 		self.clock = self.sec + 0.001*self.msec
 		self.polycorners = np.zeros(5)
 		self.computeCorners() #fills self.polycorners
-		init_angle = (1.0*self.numsides - 2) * np.pi/self.sides + np.pi/2 #radians
+		init_angle = np.pi - (1.0*self.numsides - 2) * np.pi/(2*self.numsides) #radians
 		self.gv = GroundVehicle([0,25,init_angle], 5,0)
 
 	def getCurrentSec(self):
@@ -410,18 +426,20 @@ class Simulator(object):
 			b1 = [1.0*x, 1.0*y] #current position
 			center = [0.0,0.0] #center of polygon
 			#get some phi in the forward clockwise direction for our reference point
-			phi = arctan(1.0*x/y) #current phi
+			phi = np.arctan(1.0*x/y) #current phi
 			xdot,ydot,omega = self.gv.getVelocity()
-			speed = np.sqrt((xdot^2+ydot^2))
+			speed = np.sqrt((xdot**2+ydot**2))
 			r = 25.0 #radius
-			dphi = arctan(speed*dt/r)
+			dphi = np.arctan(speed*dt/r)
 			final_phi = phi + dphi #some phi in the future, used to obtain ref point
 			c1 = [1.0*r*np.sin(final_phi),1.0*r*np.cos(final_phi)]
 			a1,a2 = self.nearestPolyPoints(final_phi) #get poly points around new phi
 			refpos = findReferencePoint(a1,a2,c1,center)
-			theta_desired = np.pi/2 + arctan((a2[1]-a1[1])/(a2[0]-a2[0]))
+			theta_desired = np.pi/2 + np.arctan((a2[1]-a1[1])/(a2[0]-a2[0]))
 			omega_desired = (theta-theta_desired)/dt
+			omega_desired = np.clip(omega_desired, -np.pi/4, np.pi/4)
 			speed = 5
+			print(omega_desired)
 			return Control(speed,omega_desired)
 		else:
 			return null
@@ -445,36 +463,22 @@ class Simulator(object):
 				self.sec += 1
 			self.clock = self.sec + 0.001*self.msec
 
+	def main(self):
+		sim = Simulator()
+		sim.run()
 
-	def main():
-		pass
-
-	def perpendicular(a):
-		#returns a vector perpendicular to a
-		b = np.empty_like(a)
-		b[0] = -a[1]
-		b[1] = a[0]
-		return b
-	def findReferencePoint(a1, a2, b1, b2):
-		#takes in endpoints of lines a and b in the form [x,y] 
-		#finds the intersection between the two lines
-		da = a2-a1
-		db = b2-b1
-		dp = a1-b1
-		dap = perpendicular(da)
-		denom = np.dot(dap,db)
-		num = np.dot(dap,dp)
-		return ((num/denom)*db + b1)
 	def computeCorners(self):
 		#takes number of sides as input
 		#computes points of polygon circumscribed by a circle of diameter = 50m
 		#takes first point at (x,y) = (0,25)
-		corners = np.zeros(self.numsides)
-		for i in len(corners):
+		corners = np.zeros((self.numsides,2))
+		corners[0] = [0.0, 25.0]
+		
+		for i in range(len(corners)):
 			if i == 0:
-				corners[0] = [0.0, 25.0]
+				corners[0] = (0.0,25.0)
 			else:
-				phi = i*2*np.pi/self.sides
+				phi = i*2*np.pi/self.numsides
 				corners[i] = [25.0*np.sin(phi), 25.0*np.cos(phi)]
 		self.polycorners = corners
 	def nearestPolyPoints(self,phi):
@@ -482,7 +486,7 @@ class Simulator(object):
 		#returns next and previous polygon points from self.polycorners
 		phi = phi #angle of current position
 		x1,y1 = self.polycorners[1] #x,y of polygon point with index 1
-		phiOne = np.arctan((1.0*x/y)) #angle of polygon point with index 1
+		phiOne = np.arctan((1.0*x1/y1)) #angle of polygon point with index 1
 		index1 = int(phi/phiOne)%self.numsides #previous index value
 		index2 = index1 + 1 #next index value
 		if index2 == self.numsides:
@@ -491,7 +495,9 @@ class Simulator(object):
 
 
 if __name__ == '__main__':
- suite = unittest.TestLoader().loadTestsFromTestCase(TestControl)
- suite2 = unittest.TestLoader().loadTestsFromTestCase(TestGroundVehicle)
- unittest.TextTestRunner(verbosity=2).run(suite) 
- unittest.TextTestRunner(verbosity=2).run(suite2) 
+ '''suite = unittest.TestLoader().loadTestsFromTestCase(TestControl)
+    suite2 = unittest.TestLoader().loadTestsFromTestCase(TestGroundVehicle)
+    unittest.TextTestRunner(verbosity=2).run(suite) 
+    unittest.TextTestRunner(verbosity=2).run(suite2) '''
+sim = Simulator()
+sim.main()
