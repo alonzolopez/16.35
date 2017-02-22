@@ -42,11 +42,9 @@ class GroundVehicle(object):
 	def getVelocity(self):
 		speed = self.control.getSpeed()
 		theta = self.pose[2]
-		print(speed)
 
 		xdot = speed*np.sin(theta)
 		ydot = speed*np.cos(theta) 
-		print(ydot)
 
 		return [xdot, ydot, self.control.getRotVel()]
 
@@ -90,11 +88,10 @@ class GroundVehicle(object):
 		xinit, yinit, thetainit = self.getPosition()
 		xdotinit, ydotinit, omegainit = self.getVelocity()
 		s = self.control.getSpeed()
-		r = s/omegainit
 		dtheta = omegainit*t
 
-		xfin = xinit + r*(np.sin(thetainit+dtheta) - np.sin(thetainit))
-		yfin = yinit - r*(np.cos(thetainit-dtheta) - np.cos(thetainit))
+		xfin = xinit + xdotinit*t
+		yfin = yinit + ydotinit*t
 		thetafin = (thetainit + dtheta) % (2*np.pi)
 
 		if thetafin < 0:
@@ -288,8 +285,6 @@ class TestGroundVehicle(unittest.TestCase):
 	def testSetVelocityXAboveBound(self):
 		self.gv1.setPosition([50,50, np.pi/2])
 		self.gv1.setVelocity([15,0,0])
-		print(self.gv1.getVelocity()[0])
-		print(self.gv1.getVelocity()[1])
 		self.assertEquals(self.gv1.getVelocity()[1], 0, "xdot Above bound alters ydot = 0 when it should not.")
 		self.assertEquals(self.gv1.getVelocity()[0], 10, "xdot above bound does not clamp correctly")
 	def testSetVelocityYAboveBound(self):
@@ -315,8 +310,6 @@ class TestGroundVehicle(unittest.TestCase):
 	def testSetVelocityXInBoundYZero(self):
 		self.gv1.setPosition([50,50,np.pi/2])
 		self.gv1.setVelocity([7,0,0])
-		print(self.gv1.getVelocity()[0])
-		print(self.gv1.getVelocity()[1])
 		self.assertEquals(self.gv1.getVelocity()[1], 0, "xdot = 7 and ydot = 0 does not set ydot correctly with theta = pi/2")
 		self.assertEquals(self.gv1.getVelocity()[0], 7, "xdot = 7 and ydot = 0 does not set xdot correctly with theta = pi/2")
 	def testSetVelocityYInBoundXZero(self):
@@ -426,7 +419,12 @@ class Simulator(object):
 			b1 = [1.0*x, 1.0*y] #current position
 			center = [0.0,0.0] #center of polygon
 			#get some phi in the forward clockwise direction for our reference point
-			phi = np.arctan(1.0*x/y) #current phi
+			if y == 0 and x < 0:
+				phi = -np.pi/2
+			elif y == 0 and x>0:
+				phi = np.pi/2
+			else: 
+				phi = np.arctan(1.0*x/y) #current phi
 			xdot,ydot,omega = self.gv.getVelocity()
 			speed = np.sqrt((xdot**2+ydot**2))
 			r = 25.0 #radius
@@ -435,11 +433,10 @@ class Simulator(object):
 			c1 = [1.0*r*np.sin(final_phi),1.0*r*np.cos(final_phi)]
 			a1,a2 = self.nearestPolyPoints(final_phi) #get poly points around new phi
 			refpos = findReferencePoint(a1,a2,c1,center)
-			theta_desired = np.pi/2 + np.arctan((a2[1]-a1[1])/(a2[0]-a2[0]))
+			theta_desired = np.pi/2 - np.arctan((a1[1]-a2[1])/(a1[0]-a2[0]))
 			omega_desired = (theta-theta_desired)/dt
 			omega_desired = np.clip(omega_desired, -np.pi/4, np.pi/4)
 			speed = 5
-			print(omega_desired)
 			return Control(speed,omega_desired)
 		else:
 			return null
@@ -453,9 +450,11 @@ class Simulator(object):
 		self.msec = 0
 		self.clock = 0
 		while self.clock < 100:
+			position = self.gv.getPosition()
+			vel= self.gv.getVelocity()
+			print("{:0.2f} {:0.2f} {:0.2f} {:0.2f} {:0.2f} {:0.2f} {:0.2f}".format(self.clock, position[0], position[1], position[2], vel[0], vel[1], vel[2]))
 			self.gv.controlVehicle(self.getControl(self.sec, self.msec))
-			self.gv.updateState(0,10)
-			print(self.clock)
+			self.gv.updateState(0,10.0)
 			#increment time
 			self.msec = self.msec + 10
 			if self.msec >= 1000:
@@ -487,6 +486,7 @@ class Simulator(object):
 		phi = phi #angle of current position
 		x1,y1 = self.polycorners[1] #x,y of polygon point with index 1
 		phiOne = np.arctan((1.0*x1/y1)) #angle of polygon point with index 1
+		#print(phi)
 		index1 = int(phi/phiOne)%self.numsides #previous index value
 		index2 = index1 + 1 #next index value
 		if index2 == self.numsides:
@@ -500,4 +500,5 @@ if __name__ == '__main__':
     unittest.TextTestRunner(verbosity=2).run(suite) 
     unittest.TextTestRunner(verbosity=2).run(suite2) '''
 sim = Simulator()
+sim.setNumSides(3)
 sim.main()
